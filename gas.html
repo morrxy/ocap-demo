@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <script src="https://cdn.jsdelivr.net/npm/@arcblock/ocap-js@0.8.0/lib/bundle.js"></script>
+  <title>Eth转账计算器</title>
+</head>
+
+<body>
+
+  <div>
+    gasLimit: <input type="text" id="gasLimit">
+  </div>
+  <div>
+    gasPrice: <input type="text" id="gasPrice">
+  </div>
+
+  <div>
+    <button id="yuce">计算</button>
+  </div>
+
+  <script>
+
+    let globalGasList = []
+
+    const client = new OCAPClient({
+      dataSource: 'eth',
+    });
+
+    (async () => {
+      const subscription = await client.newBlockMined();
+      subscription.on('data', onData);
+    })();
+
+    function onData(data) {
+      console.log('onData', data)
+
+      var transactions = data.newBlockMined.transactions
+
+      var gasUsedList = transactions.data.map(tx => ({
+        gasUsed: tx.gasUsed,
+        gasLimit: tx.gasLimit,
+        gasPrice: parseFloat(tx.gasPrice)
+      }))
+
+      globalGasList = globalGasList.concat(gasUsedList)
+      window.localStorage.setItem('list', JSON.stringify(globalGasList))
+
+      console.log('block list:', gasUsedList, '\nglobal list:', globalGasList)
+      return gasUsedList
+
+      updateUI()
+    }
+
+    function updateUI() {
+      document.querySelector('#yuce').addEventListener('click', function () {
+        if (globalGasList.length === 0) {
+          alert('无数据，等10秒')
+          return
+        }
+
+        if (!document.querySelector('#gasPrice').value) {
+          alert('请输入价格')
+          return
+        }
+
+        if (!document.querySelector('#gasLimit').value) {
+          alert('请输入limit')
+          return
+        }
+
+        var yourPrice = parseFloat(document.querySelector('#gasPrice').value)
+        var yourLimit = parseFloat(document.querySelector('#gasLimit').value)
+
+        var alist = JSON.parse(window.localStorage.getItem('list'))
+
+        // var { okNum, okPercent, total, avg, existSlowerLimit } = getOk(yourPrice, globalGasList, yourLimit)
+        var { okNum, okPercent, total, avg, existSlowerLimit } = getOk(yourPrice, alist, yourLimit)
+        console.log(okNum, okPercent, total, avg, existSlowerLimit)
+
+        alert(`最近${total}比交易中：\n平均eth费用${avg}Eth\n低于该价格的成功次数:${okNum},\n以该价格交易成功占比${okPercent * 100}%\n${existSlowerLimit ? '有人使用过低于你的limit,交易可能成功' : '你的limit比所有的都低，交易可能失败'}`)
+      })
+    }
+
+    function getOk(yourPrice, list, yourLimit) {
+      const alist = list.slice(0, 200)
+
+      var filtered = alist.filter(item => parseFloat(item.gasPrice) <= yourPrice)
+
+
+      var totalNum = alist.reduce((acc, curr) => {
+        acc += curr.gasPrice * curr.gasUsed
+        return acc
+      }, 0)
+
+      var avg = totalNum / alist.length
+
+      var existSlowerLimit = !!alist.find(tx => tx.gasLimit < yourLimit)
+
+      return {
+        total: alist.length,
+        okNum: filtered.length,
+        okPercent: filtered.length / alist.length,
+        avg: avg / 1000000000,
+        existSlowerLimit
+      }
+    }
+
+    updateUI()
+  </script>
+</body>
+
+</html>
