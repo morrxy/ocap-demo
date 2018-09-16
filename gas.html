@@ -23,66 +23,61 @@
   </div>
 
   <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const client = new OCAPClient({
+        dataSource: 'eth',
+      });
 
-    let globalGasList = []
+      (async () => {
+        const subscription = await client.newBlockMined();
+        subscription.on('data', onData);
+      })();
 
-    const client = new OCAPClient({
-      dataSource: 'eth',
-    });
-
-    (async () => {
-      const subscription = await client.newBlockMined();
-      subscription.on('data', onData);
-    })();
+      document.querySelector('#yuce').addEventListener('click', clickHandler)
+    })
 
     function onData(data) {
       console.log('onData', data)
 
-      var transactions = data.newBlockMined.transactions
+      const transactions = data.newBlockMined.transactions
 
-      var gasUsedList = transactions.data.map(tx => ({
+      const gasInfoList = transactions.data.map(tx => ({
         gasUsed: tx.gasUsed,
         gasLimit: tx.gasLimit,
         gasPrice: parseFloat(tx.gasPrice)
       }))
 
-      globalGasList = globalGasList.concat(gasUsedList)
-      window.localStorage.setItem('list', JSON.stringify(globalGasList))
-
-      console.log('block list:', gasUsedList, '\nglobal list:', globalGasList)
-      return gasUsedList
-
-      updateUI()
+      const storageList = getStorageList().concat(gasInfoList)
+      window.localStorage.setItem('gaslist', JSON.stringify(storageList))
     }
 
-    function updateUI() {
-      document.querySelector('#yuce').addEventListener('click', function () {
-        if (globalGasList.length === 0) {
-          alert('无数据，等10秒')
-          return
-        }
+    function clickHandler() {
+      const globalGasList = window.localStorage.getItem('gaslist')
 
-        if (!document.querySelector('#gasPrice').value) {
-          alert('请输入价格')
-          return
-        }
+      if (!globalGasList || globalGasList.length === 0) {
+        alert('无数据，等10秒')
+        return
+      }
 
-        if (!document.querySelector('#gasLimit').value) {
-          alert('请输入limit')
-          return
-        }
+      if (!document.querySelector('#gasPrice').value) {
+        alert('请输入价格')
+        return
+      }
 
-        var yourPrice = parseFloat(document.querySelector('#gasPrice').value)
-        var yourLimit = parseFloat(document.querySelector('#gasLimit').value)
+      if (!document.querySelector('#gasLimit').value) {
+        alert('请输入limit')
+        return
+      }
 
-        var alist = JSON.parse(window.localStorage.getItem('list'))
+      var yourPrice = parseFloat(document.querySelector('#gasPrice').value)
+      var yourLimit = parseFloat(document.querySelector('#gasLimit').value)
 
-        // var { okNum, okPercent, total, avg, existSlowerLimit } = getOk(yourPrice, globalGasList, yourLimit)
-        var { okNum, okPercent, total, avg, existSlowerLimit } = getOk(yourPrice, alist, yourLimit)
-        console.log(okNum, okPercent, total, avg, existSlowerLimit)
+      var alist = JSON.parse(window.localStorage.getItem('gaslist'))
 
-        alert(`最近${total}比交易中：\n平均eth费用${avg}Eth\n低于该价格的成功次数:${okNum},\n以该价格交易成功占比${okPercent * 100}%\n${existSlowerLimit ? '有人使用过低于你的limit,交易可能成功' : '你的limit比所有的都低，交易可能失败'}`)
-      })
+      var { okNum, okPercent, total, avg, existSlowerLimit } = getOk(yourPrice, alist, yourLimit)
+      console.log(okNum, okPercent, total, avg, existSlowerLimit)
+
+      alert(`最近${total}比交易中：\n平均eth费用${avg}Eth\n低于该价格的成功次数:${okNum},\n以该价格交易成功占比${okPercent * 100}%\n${existSlowerLimit ? '有人使用过低于你的limit,交易可能成功' : '你的limit比所有的都低，交易可能失败'}`)
     }
 
     function getOk(yourPrice, list, yourLimit) {
@@ -109,7 +104,10 @@
       }
     }
 
-    updateUI()
+    function getStorageList() {
+      const list = window.localStorage.getItem('gaslist')
+      return list ? JSON.parse(list) : []
+    }
   </script>
 </body>
 
